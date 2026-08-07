@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
+	kitenv "github.com/starcat-app/starcat-api-kit/env"
 	"github.com/starcat-app/starcat-wiki-api/internal/handler"
 	"github.com/starcat-app/starcat-wiki-api/internal/middleware"
 	"github.com/starcat-app/starcat-wiki-api/internal/probe"
@@ -50,16 +50,17 @@ func DefaultPort() string { return defaultPort }
 
 // FromEnv 从环境变量装配服务（与历史 cmd/server 行为一致）。
 func FromEnv() (*Service, error) {
-	apiKeysStr := os.Getenv("API_KEYS")
-	if apiKeysStr == "" {
+	apiKeys, err := kitenv.RequiredCSV("API_KEYS")
+	if err != nil {
 		return nil, fmt.Errorf("API_KEYS env is required")
 	}
 	opt := Options{
-		Port:                   envOrDefault("PORT", defaultPort),
-		StoreFile:              envOrDefault("STORE_FILE", defaultStoreFile),
-		APIKeys:                strings.Split(apiKeysStr, ","),
-		ProbeUserAgent:         os.Getenv("PROBE_USER_AGENT"),
-		EnableCodewikiBatchRPC: os.Getenv("ENABLE_CODEWIKI_BATCHEXECUTE") == "true",
+		Port:                   kitenv.OrDefault("PORT", defaultPort),
+		StoreFile:              kitenv.OrDefault("STORE_FILE", defaultStoreFile),
+		APIKeys:                apiKeys,
+		ProbeUserAgent:         kitenv.OrDefault("PROBE_USER_AGENT", ""),
+		// 历史行为只认字面 "true"，不用 ParseBool，避免 "1"/"TRUE" 语义漂移。
+		EnableCodewikiBatchRPC: kitenv.OrDefault("ENABLE_CODEWIKI_BATCHEXECUTE", "") == "true",
 	}
 	return New(opt)
 }
@@ -142,12 +143,4 @@ func (s *Service) Close() error {
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
-}
-
-func envOrDefault(key, fallback string) string {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback
-	}
-	return value
 }

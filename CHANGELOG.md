@@ -5,6 +5,7 @@
 ### Changed
 - 导出可装配 `server` 包；依赖 `starcat-api-kit`。
 - `/api/v1/ping` 改用 kit `httputil.HandlePingV1`（envelope 契约不变）。
+- `server.FromEnv` 改用 kit `env`。
 
 ## [Unreleased]
 
