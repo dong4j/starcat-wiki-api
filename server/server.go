@@ -55,10 +55,10 @@ func FromEnv() (*Service, error) {
 		return nil, fmt.Errorf("API_KEYS env is required")
 	}
 	opt := Options{
-		Port:                   kitenv.OrDefault("PORT", defaultPort),
-		StoreFile:              kitenv.OrDefault("STORE_FILE", defaultStoreFile),
-		APIKeys:                apiKeys,
-		ProbeUserAgent:         kitenv.OrDefault("PROBE_USER_AGENT", ""),
+		Port:           kitenv.OrDefault("PORT", defaultPort),
+		StoreFile:      kitenv.OrDefault("STORE_FILE", defaultStoreFile),
+		APIKeys:        apiKeys,
+		ProbeUserAgent: kitenv.OrDefault("PROBE_USER_AGENT", ""),
 		// 历史行为只认字面 "true"，不用 ParseBool，避免 "1"/"TRUE" 语义漂移。
 		EnableCodewikiBatchRPC: kitenv.OrDefault("ENABLE_CODEWIKI_BATCHEXECUTE", "") == "true",
 	}

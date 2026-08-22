@@ -5,11 +5,9 @@ go 1.25.0
 require (
 	github.com/joho/godotenv v1.5.1
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/starcat-app/starcat-api-kit v0.0.0
+	github.com/starcat-app/starcat-api-kit v0.2.0
 	modernc.org/sqlite v1.52.0
 )
-
-replace github.com/starcat-app/starcat-api-kit => ../starcat-api-kit
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
