@@ -95,6 +95,7 @@ The default port is `5004`.
 |----------|-------------|---------|
 | `PORT` | Server port | `5004` |
 | `STORE_FILE` | SQLite database path | `./wiki.db` |
+| `METRICS_STORE_FILE` | Dedicated request metrics SQLite path | `./wiki-metrics.db` |
 | `API_KEYS` | Comma-separated Bearer Token allowlist | Required |
 | `PROBE_USER_AGENT` | HTTP request User-Agent | Chrome 126 |
 | `ENABLE_CODEWIKI_BATCHEXECUTE` | Enable precise probing through the CodeWiki RPC | `false` |
@@ -241,6 +242,14 @@ Manually refresh the probe cache for every repository owned by the specified own
 
 Health check that returns `ok`.
 
+## Operations and Metrics
+
+- `GET /internal/stats`: probe coverage, source/status distribution, retry backlog, and freshness.
+- `GET /internal/probe-errors?limit=1..100`: bounded recent probe errors.
+- `GET /internal/metrics/{summary,timeseries,routes,status-codes}`: aggregate route traffic, errors, and latency.
+
+All endpoints use the Service API Key. Metrics do not retain credentials or raw requests.
+
 ## Authentication
 
 All `/api/v1/*` and `/internal/*` endpoints require an `Authorization: Bearer <api-key>` header.
@@ -309,6 +318,7 @@ fly secrets set \
   API_KEYS="sk-starcat-prodKey1,sk-starcat-prodKey2" \
   ENABLE_CODEWIKI_BATCHEXECUTE="true" \
   STORE_FILE="/data/wiki.db" \
+  METRICS_STORE_FILE="/data/wiki-metrics.db" \
   -a starcat-wiki-api
 
 fly deploy -a starcat-wiki-api
