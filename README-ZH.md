@@ -95,6 +95,7 @@ go run ./cmd/server/
 |------|------|--------|
 | `PORT` | 服务端口 | `5004` |
 | `STORE_FILE` | SQLite 数据库路径 | `./wiki.db` |
+| `METRICS_STORE_FILE` | 独立请求指标 SQLite 路径 | `./wiki-metrics.db` |
 | `API_KEYS` | Bearer Token 白名单（逗号分隔） | 必填 |
 | `PROBE_USER_AGENT` | HTTP 请求 UA | Chrome 126 |
 | `ENABLE_CODEWIKI_BATCHEXECUTE` | 启用 CodeWiki RPC 精确探测 | `false` |
@@ -309,6 +310,7 @@ fly secrets set \
   API_KEYS="sk-starcat-prodKey1,sk-starcat-prodKey2" \
   ENABLE_CODEWIKI_BATCHEXECUTE="true" \
   STORE_FILE="/data/wiki.db" \
+  METRICS_STORE_FILE="/data/wiki-metrics.db" \
   -a starcat-wiki-api
 
 fly deploy -a starcat-wiki-api

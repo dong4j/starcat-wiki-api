@@ -9,8 +9,10 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 
 	kitenv "github.com/starcat-app/starcat-api-kit/env"
+	kitmetrics "github.com/starcat-app/starcat-api-kit/metrics"
 	"github.com/starcat-app/starcat-wiki-api/internal/handler"
 	"github.com/starcat-app/starcat-wiki-api/internal/middleware"
 	"github.com/starcat-app/starcat-wiki-api/internal/probe"
@@ -27,6 +29,7 @@ const defaultStoreFile = "./wiki.db"
 type Options struct {
 	Port                   string
 	StoreFile              string
+	MetricsStoreFile       string
 	APIKeys                []string
 	ProbeUserAgent         string
 	EnableCodewikiBatchRPC bool
@@ -40,6 +43,8 @@ type Service struct {
 	sqliteStore  *store.SQLiteStore
 	sch          *scheduler.Scheduler
 	probeHandler *handler.ProbeHandler
+	metrics      *kitmetrics.Collector
+	closeOnce    sync.Once
 }
 
 // Name 返回聚合网关识别用的稳定服务名。
@@ -55,10 +60,11 @@ func FromEnv() (*Service, error) {
 		return nil, fmt.Errorf("API_KEYS env is required")
 	}
 	opt := Options{
-		Port:           kitenv.OrDefault("PORT", defaultPort),
-		StoreFile:      kitenv.OrDefault("STORE_FILE", defaultStoreFile),
-		APIKeys:        apiKeys,
-		ProbeUserAgent: kitenv.OrDefault("PROBE_USER_AGENT", ""),
+		Port:             kitenv.OrDefault("PORT", defaultPort),
+		StoreFile:        kitenv.OrDefault("STORE_FILE", defaultStoreFile),
+		MetricsStoreFile: kitenv.OrDefault("METRICS_STORE_FILE", "./wiki-metrics.db"),
+		APIKeys:          apiKeys,
+		ProbeUserAgent:   kitenv.OrDefault("PROBE_USER_AGENT", ""),
 		// 历史行为只认字面 "true"，不用 ParseBool，避免 "1"/"TRUE" 语义漂移。
 		EnableCodewikiBatchRPC: kitenv.OrDefault("ENABLE_CODEWIKI_BATCHEXECUTE", "") == "true",
 	}
@@ -73,6 +79,9 @@ func New(opt Options) (*Service, error) {
 	if strings.TrimSpace(opt.StoreFile) == "" {
 		opt.StoreFile = defaultStoreFile
 	}
+	if strings.TrimSpace(opt.MetricsStoreFile) == "" {
+		opt.MetricsStoreFile = ":memory:"
+	}
 	if len(opt.APIKeys) == 0 {
 		return nil, fmt.Errorf("APIKeys is required")
 	}
@@ -81,6 +90,18 @@ func New(opt Options) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize SQLite: %w", err)
 	}
+	metricsStore, err := kitmetrics.OpenSQLite(opt.MetricsStoreFile)
+	if err != nil {
+		_ = sqliteStore.Close()
+		return nil, fmt.Errorf("initialize metrics SQLite: %w", err)
+	}
+	metricsCollector, err := kitmetrics.NewCollector(kitmetrics.Config{Service: Name(), Store: metricsStore})
+	if err != nil {
+		_ = metricsStore.Close()
+		_ = sqliteStore.Close()
+		return nil, fmt.Errorf("initialize metrics collector: %w", err)
+	}
+	metricsHandler := kitmetrics.NewHandler(Name(), metricsCollector.Store())
 
 	baseReq := probe.NewBaseRequest(opt.ProbeUserAgent)
 	probes := probe.DefaultRegistry(baseReq, opt.EnableCodewikiBatchRPC)
@@ -96,6 +117,12 @@ func New(opt Options) (*Service, error) {
 	mux.Handle("POST /api/v1/wikis/batch", authMW.Wrap(http.HandlerFunc(probeHandler.HandleProbeBatchV1)))
 	mux.Handle("POST /internal/sync/probe", authMW.Wrap(handler.HandleAdminSyncProbe(sch)))
 	mux.Handle("POST /internal/refresh/owner", authMW.Wrap(handler.HandleAdminRefreshOwner(sch)))
+	mux.Handle("GET /internal/stats", authMW.Wrap(handler.HandleOperationalStats(sqliteStore)))
+	mux.Handle("GET /internal/probe-errors", authMW.Wrap(handler.HandleRecentProbeErrors(sqliteStore)))
+	mux.Handle("GET /internal/metrics/summary", authMW.Wrap(http.HandlerFunc(metricsHandler.HandleSummary)))
+	mux.Handle("GET /internal/metrics/timeseries", authMW.Wrap(http.HandlerFunc(metricsHandler.HandleTimeseries)))
+	mux.Handle("GET /internal/metrics/routes", authMW.Wrap(http.HandlerFunc(metricsHandler.HandleRoutes)))
+	mux.Handle("GET /internal/metrics/status-codes", authMW.Wrap(http.HandlerFunc(metricsHandler.HandleStatusCodes)))
 
 	if !opt.SkipListenLogEndpoints {
 		log.Printf("starcat-wiki-api %s starting on port %s", version.Version, opt.Port)
@@ -110,10 +137,11 @@ func New(opt Options) (*Service, error) {
 
 	return &Service{
 		opts:         opt,
-		handler:      middleware.CORS(mux),
+		handler:      metricsCollector.Wrap(middleware.CORS(mux)),
 		sqliteStore:  sqliteStore,
 		sch:          sch,
 		probeHandler: probeHandler,
+		metrics:      metricsCollector,
 	}, nil
 }
 
@@ -131,13 +159,21 @@ func (s *Service) StartBackground() {
 
 // Close 停止调度器并关闭 SQLite。
 func (s *Service) Close() error {
-	if s.sch != nil {
-		s.sch.Stop()
-	}
-	if s.sqliteStore != nil {
-		return s.sqliteStore.Close()
-	}
-	return nil
+	var closeErr error
+	s.closeOnce.Do(func() {
+		if s.sch != nil {
+			s.sch.Stop()
+		}
+		if s.metrics != nil {
+			closeErr = s.metrics.Close()
+		}
+		if s.sqliteStore != nil {
+			if err := s.sqliteStore.Close(); closeErr == nil {
+				closeErr = err
+			}
+		}
+	})
+	return closeErr
 }
 
 func healthzHandler(w http.ResponseWriter, r *http.Request) {

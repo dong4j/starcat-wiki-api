@@ -95,6 +95,7 @@ The default port is `5004`.
 |----------|-------------|---------|
 | `PORT` | Server port | `5004` |
 | `STORE_FILE` | SQLite database path | `./wiki.db` |
+| `METRICS_STORE_FILE` | Dedicated request metrics SQLite path | `./wiki-metrics.db` |
 | `API_KEYS` | Comma-separated Bearer Token allowlist | Required |
 | `PROBE_USER_AGENT` | HTTP request User-Agent | Chrome 126 |
 | `ENABLE_CODEWIKI_BATCHEXECUTE` | Enable precise probing through the CodeWiki RPC | `false` |
@@ -309,6 +310,7 @@ fly secrets set \
   API_KEYS="sk-starcat-prodKey1,sk-starcat-prodKey2" \
   ENABLE_CODEWIKI_BATCHEXECUTE="true" \
   STORE_FILE="/data/wiki.db" \
+  METRICS_STORE_FILE="/data/wiki-metrics.db" \
   -a starcat-wiki-api
 
 fly deploy -a starcat-wiki-api
