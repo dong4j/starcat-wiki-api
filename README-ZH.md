@@ -242,6 +242,14 @@ go run ./cmd/server/
 
 健康检查，返回 `ok`。
 
+## 运营与调用指标
+
+- `GET /internal/stats`：探测覆盖、来源/状态分布、重试积压和新鲜度。
+- `GET /internal/probe-errors?limit=1..100`：受限近期探测错误。
+- `GET /internal/metrics/{summary,timeseries,routes,status-codes}`：路由调用量、错误与延迟聚合。
+
+接口统一使用 Service API Key；指标不保留凭据或原始请求。
+
 ## 鉴权
 
 所有 `/api/v1/*` 和 `/internal/*` 端点需要 `Authorization: Bearer <api-key>` 头。

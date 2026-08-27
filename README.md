@@ -242,6 +242,14 @@ Manually refresh the probe cache for every repository owned by the specified own
 
 Health check that returns `ok`.
 
+## Operations and Metrics
+
+- `GET /internal/stats`: probe coverage, source/status distribution, retry backlog, and freshness.
+- `GET /internal/probe-errors?limit=1..100`: bounded recent probe errors.
+- `GET /internal/metrics/{summary,timeseries,routes,status-codes}`: aggregate route traffic, errors, and latency.
+
+All endpoints use the Service API Key. Metrics do not retain credentials or raw requests.
+
 ## Authentication
 
 All `/api/v1/*` and `/internal/*` endpoints require an `Authorization: Bearer <api-key>` header.
